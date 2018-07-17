@@ -7,9 +7,9 @@ t2=ScanProxy()
 t3=ScanProxy()
 t4=ScanProxy()
 t5=ScanProxy()
-t1.setProxyCount(10) #定义要获取的可用的代理数量，默认为1，
+t1.setProxyCount(1) #定义要获取的可用的代理数量，默认为1，
 print(t1.getProxyCount())
-sys.exit(0)
+#sys.exit(0)
 
 t1.start()
 t2.start()
@@ -23,3 +23,12 @@ t2.join()
 t3.join()
 t4.join()
 t5.join()
+
+#保存数据
+print("多线程代理扫描结束")
+print("开始保存结果")
+t5.writeProxy()
+resultList=t5.getResultList()
+for line in resultList:
+    print(line)
+

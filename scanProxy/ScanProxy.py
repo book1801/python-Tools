@@ -6,32 +6,32 @@ import time
 from lxml import etree
 import pdb
 
-ScanProxyList=[] #待检测的代理列表
-urllist=["http://www.xicidaili.com/nn/"+str(page) for page in range(1,11)]
-ProxyCount=1 #要获取的有效代理数量
+ScanProxy_ScanProxyList=[] #待检测的代理列表
+ScanProxy_ProxyCount=1 #要获取的有效代理数量
+ScanProxy_ProxyList=[] #可用代理列表
+ScanProxy_ScanedProxyList={} #无效代理列表
+ScanProxy_urllist=["http://www.xicidaili.com/nn/"+str(page) for page in range(1,11)]
+ScanProxy_proxyfile="./no_proxy_list.txt"
+ScanProxy_resultProxyFile="./use_proxy_list.txt"
 
 class ScanProxy(threading.Thread):
-    ProxyList=[] #可用代理列表
-    __ScanedProxyList={} #无效代理列表
-    
-    __proxyfile="./no_proxy_list.txt"
-    __resultProxyFile="./use_proxy_list.txt"
-
     def __init__(self):
         self.readOldProxy()
         threading.Thread.__init__(self)
 
     def setProxyCount(self,count):
-        global ProxyCount
-        ProxyCount=count
+        global ScanProxy_ProxyCount
+        ScanProxy_ProxyCount=count
 
     def getProxyCount(self):
-        global ProxyCount
-        return ProxyCount    
+        global ScanProxy_ProxyCount
+        return ScanProxy_ProxyCount    
 
     def readOldProxy(self):
+        global ScanProxy_proxyfile,ScanProxy_ScanedProxyList
+
         value=1
-        for line in open(self.__proxyfile,mode="r",encoding="utf-8"):
+        for line in open(ScanProxy_proxyfile,mode="r",encoding="utf-8"):
             line=line.replace("\n","")
             arr=line.split(":")
             if len(arr) > 2:
@@ -39,14 +39,15 @@ class ScanProxy(threading.Thread):
                 port=arr[1]
                 https=arr[2]
                 key=ip+":"+port+":"+https
-                self.__ScanedProxyList[key]=value
+                ScanProxy_ScanedProxyList[key]=value
                 value=value+ 1
 
     #将代理写入文件
     def writeProxy(self):
+        global ScanProxy_ScanedProxyList,ScanProxy_proxyfile
         #按字典键值对字典进行排序
-        tmp_list=sorted(self.__ScanedProxyList.items(),key=lambda e:e[1],reverse=True)
-        file=open(self.__proxyfile,mode="w",encoding="utf-8")
+        tmp_list=sorted(ScanProxy_ScanedProxyList.items(),key=lambda e:e[1],reverse=True)
+        file=open(ScanProxy_proxyfile,mode="w",encoding="utf-8")
         n=1
         for k,v in tmp_list:
             if n > 10000: break
@@ -54,6 +55,15 @@ class ScanProxy(threading.Thread):
             file.writelines(line+"\n")
             n=n +1
         file.close() 
+
+        file2=open(ScanProxy_resultProxyFile,mode="w",encoding="utf-8")
+        for line in ScanProxy_ProxyList:
+            file2.writelines(line+"\n")
+        file2.close()
+
+    #返回结果，list
+    def getResultList(self):
+        return ScanProxy_ProxyList        
 
     #检测代理
     def scanProxy(self,ipporthttps):
@@ -118,7 +128,7 @@ class ScanProxy(threading.Thread):
 
     #解析西祠代理页面
     def getXiciProxy(self,html):
-        global ScanProxyList
+        global ScanProxy_ScanProxyList,ScanProxy_ScanedProxyList,ScanProxy_ProxyList
         e=etree.HTML(html)
         tr=e.xpath("//table[@id='ip_list']/tr[position() >1]")
         for e_tr in tr:
@@ -129,31 +139,35 @@ class ScanProxy(threading.Thread):
                 https=td[5].xpath("string(.)")
                 ipporthttps=ip+":"+port+":"+https
 
-                if (ipporthttps not in ScanProxyList) and (ipporthttps not in self.__ScanedProxyList) and (ipporthttps not in self.ProxyList):
-                    ScanProxyList.append(ipporthttps)
+                if (ipporthttps not in ScanProxy_ScanProxyList) and (ipporthttps not in ScanProxy_ScanedProxyList) and (ipporthttps not in ScanProxy_ProxyList):
+                    ScanProxy_ScanProxyList.append(ipporthttps)
 
     #多线程扫描
     def run(self):
-        global urllist,ScanProxyList,ProxyCount #list是线程安全的，
-        while len(self.ProxyList) < ProxyCount:
-            if len(urllist) > 0:
-                url=urllist.pop()
+        global ScanProxy_urllist,ScanProxy_ScanProxyList,ScanProxy_ProxyCount #list是线程安全的，
+        while len(ScanProxy_ProxyList) < ScanProxy_ProxyCount:
+            print("当前线程："+threading.current_thread().getName())
+            if len(ScanProxy_urllist) > 0:
+                url=ScanProxy_urllist.pop()
                 html=self.spiderXici(url)
                 if html=="":
-                    urllist.append(url)
+                    ScanProxy_urllist.append(url)
                     time.sleep(5*60)
                 else:
                     self.getXiciProxy(html)
 
-            if len(ScanProxyList) < 1:
+            if len(ScanProxy_ScanProxyList) < 1:
                 break
             else:
-                ipporthttps=ScanProxyList.pop()
-                result=self.scanProxy(ipporthttps)
-                if result:
-                    self.ProxyList.append(ipporthttps)
+                ipporthttps=ScanProxy_ScanProxyList.pop()
+                if (ipporthttps not in ScanProxy_ScanedProxyList.keys()) and (ipporthttps not in ScanProxy_ProxyList):
+                    result=self.scanProxy(ipporthttps)
+                    if result:
+                        ScanProxy_ProxyList.append(ipporthttps)
+                    else:
+                        ScanProxy_ScanedProxyList[ipporthttps]=len(ScanProxy_ScanedProxyList)
                 else:
-                    self.__ScanedProxyList[ipporthttps]=len(self.__ScanedProxyList)    
+                    print("【测试】"+ipporthttps+" 已经检测过")            
 
             
                   
