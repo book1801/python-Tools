@@ -1,17 +1,17 @@
 #-*-coding:utf-8 
-#单线程代理扫描
-
+#多线程代理扫描
+import threading
 import requests
 import pdb
 from lxml import etree
 
-class ScanProxy(object):
+ProxyList=[]
+ScanProxyList=[]
+class ScanProxy(threading.Thread):
     UrlList=[]
-    ProxyList=[]
-    ScanProxyList=[]
-
     def __init__(self):
         self.InitUrlLis()
+        threading.Thread.__init__(self)
 
     def InitUrlLis(self):
         self.UrlList.append("http://www.xicidaili.com/nn/")
@@ -44,7 +44,7 @@ class ScanProxy(object):
 
     #解析西祠页面
     def getXiciPage(self,html):
-        tmp_proxy_list=[]
+        global ScanProxyList
         e=etree.HTML(html)
         tr=e.xpath("//table[@id='ip_list']/tr[position() >1]")
         for e_tr in tr:
@@ -53,13 +53,12 @@ class ScanProxy(object):
                 ip=td[1].xpath("string(.)")
                 port=td[2].xpath("string(.)")
                 ipport=ip+":"+port
-                if ipport not in self.ScanProxyList:
-                    tmp_proxy_list.append(ipport)
-        return tmp_proxy_list            
+                if ipport not in ScanProxyList:
+                    ScanProxyList.append(ipport)          
 
     #解析ip3366
     def getIp3366Page(self,html):
-        tmp_proxy_list=[]
+        global ScanProxyList
         e=etree.HTML(html)
         tr=e.xpath("//table/tbody/tr")
         for e_tr in tr:
@@ -68,13 +67,12 @@ class ScanProxy(object):
                 ip=td[0].xpath("string(.)")
                 port=td[1].xpath("string(.)")
                 ipport=ip+":"+port
-                if ipport not in self.ScanProxyList:
-                    tmp_proxy_list.append(ipport)
-        return tmp_proxy_list            
+                if ipport not in ScanProxyList:
+                    ScanProxyList.append(ipport)           
 
     #解析iphai
     def getIphaiPage(self,html):
-        tmp_proxy_list=[]
+        global ScanProxyList
         e=etree.HTML(html)
         tr=e.xpath("//table/tr[position() >1]")
         for e_tr in tr:
@@ -83,9 +81,8 @@ class ScanProxy(object):
                 ip=td[0].xpath("string(.)").replace("\r\n","").replace(" ","")
                 port=td[1].xpath("string(.)").replace("\r\n","").replace(" ","")
                 ipport=ip+":"+port
-                if ipport not in self.ScanProxyList:
-                    tmp_proxy_list.append(ipport)
-        return tmp_proxy_list
+                if ipport not in ScanProxyList:
+                    ScanProxyList.append(ipport)
 
     #检测代理可用性    扫描ip138
     '''
@@ -145,16 +142,16 @@ class ScanProxy(object):
                 r = requests.get(url, headers=header, proxies=proxy, timeout=6)
                 tree = etree.HTML(r.text)
             except:
-                print("【检测】"+ipport + " 不可用")
+                #print("【检测】"+ipport + " 不可用")
                 return False
             else:
                 code=tree.xpath("string(//title)")
                 #pdb.set_trace()
                 if (code.find("360搜索") >=0) and (code.find("SO靠谱") > 0):
-                    print("【检测】"+ipport + "  OK ")
+                    #print("【检测】"+ipport + "  OK ")
                     return True
                 else:
-                    print("【检测】"+ipport + " 不可用")
+                    #print("【检测】"+ipport + " 不可用")
                     return False    
                 
         else:
@@ -162,42 +159,88 @@ class ScanProxy(object):
             return False     
 
     #扫描过程
-    def start(self):
+    def startSpider(self):
         for url in self.UrlList:
             html=self.spider(url,"")
             if html=="":
                 print("【异常】抓取 "+url+" 出现异常.")
             else:
-                tmp_Proxy_List=[]
                 if url.find("xicidaili") >= 0:
-                    tmp_Proxy_List=self.getXiciPage(html)
+                    self.getXiciPage(html)
                 elif url.find("ip3366") >=0:
-                    tmp_Proxy_List=self.getIp3366Page(html)
+                    self.getIp3366Page(html)
                 elif url.find("iphai")  >=0:
-                    tmp_Proxy_List=self.getIphaiPage(html)
+                    self.getIphaiPage(html)
                 else:
                     print("【异常】 找不到该页面"+url+" 的解析方法.")
-
-                for p in tmp_Proxy_List:
-                    if self.scan(p):
-                        if p not in self.ProxyList:
-                            self.ProxyList.append(p)
-                    else:
-                        if p in self.ProxyList:
-                            self.ProxyList.remove(p)
+    
+    #多线程扫描
+    def run(self):
+        global ScanProxyList,ProxyList
+        while len(ScanProxyList):
+            p=ScanProxyList.pop()
+            
+            if self.scan(p):
+                print(threading.current_thread().getName()+"  " + p +"  OK")
+                if p not in ProxyList:
+                    ProxyList.append(p)
+            else:
+                print(threading.current_thread().getName()+"  " + p +"   不可用")
+                if p in ProxyList:
+                    ProxyList.remove(p)
 
     #获取扫描结果
     def getResultProxy(self):
-        return self.ProxyList
+        global ProxyList
+        return ProxyList
 
     #展示扫描结果
     def showProxy(self):
-        for proxy in self.ProxyList:
+        global ProxyList
+        for proxy in ProxyList:
             print(proxy)
 
 ############ test ############
-'''
-s=ScanProxy()
-s.start()
-s.showProxy()
-'''
+s1=ScanProxy()
+s1.startSpider()
+
+s2=ScanProxy()
+s3=ScanProxy()
+s4=ScanProxy()
+s5=ScanProxy()
+s6=ScanProxy()
+s7=ScanProxy()
+s8=ScanProxy()
+s9=ScanProxy()
+s10=ScanProxy()
+
+s1.start()
+s2.start()
+s3.start()
+s4.start()
+s5.start()
+s6.start()
+s7.start()
+s8.start()
+s9.start()
+s10.start()
+
+s1.join()
+s2.join()
+s3.join()
+s4.join()
+s5.join()
+s6.join()
+s7.join()
+s8.join()
+s9.join()
+s10.join()
+
+result=s1.getResultProxy()
+file="./proxy.list"
+f=open(file,mode="w",encoding="utf-8")
+for l in result:
+    l=l+"\n"
+    f.writelines(l)
+f.close()    
+
